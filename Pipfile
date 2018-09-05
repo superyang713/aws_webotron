@@ -8,6 +8,7 @@ click = "*"
 "boto3" = "*"
 
 [dev-packages]
+ipython = "*"
 
 [requires]
 python_version = "3.6"
