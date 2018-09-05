@@ -14,19 +14,35 @@ Webotron automates the process of deploying static websites to AWS.
 """
 
 import boto3
+from botocore.exceptions import NoCredentialsError, ProfileNotFound
 import click
 
 from bucket import BucketManager
 
 
-session = boto3.Session(profile_name='pythonAutomation-other')
-bucket_manager = BucketManager(session)
+session = None
+bucket_manager = None
 
 
 @click.group()
-def cli():
+@click.option('--profile', default=None, help="Use a given AWS profile")
+def cli(profile):
     """Webotron deploys websites to AWS."""
-    pass
+    global session, bucket_manager
+    session_cfg = {}
+    if profile:
+        session_cfg['profile_name'] = profile
+        try:
+            session = boto3.Session(**session_cfg)
+            bucket_manager = BucketManager(session)
+        except ProfileNotFound as e:
+            print(e)
+            exit()
+    else:
+        raise NoCredentialsError(
+            "Please input profile name with --profile flag"
+        )
+        exit()
 
 
 @cli.command('list-buckets')
