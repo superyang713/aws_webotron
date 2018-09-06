@@ -6,6 +6,7 @@ Classes for S3 Buckets.
 
 from botocore.client import Config
 from botocore.exceptions import ClientError
+from boto3.exceptions import S3UploadFailedError
 
 import json
 import mimetypes
@@ -38,8 +39,12 @@ class BucketManager:
             client = self.session.client(
                 's3', 'us-east-1', config=Config(signature_version='s3v4')
             )
-            client.create_bucket(Bucket=bucket_name)
-            s3_bucket = self.s3.Bucket(bucket_name)
+            try:
+                client.create_bucket(Bucket=bucket_name)
+                s3_bucket = self.s3.Bucket(bucket_name)
+            except ClientError as err:
+                print('Abort: The bucket name has been occupised.')
+                exit()
 
         else:
             try:
@@ -107,11 +112,15 @@ class BucketManager:
 
     @staticmethod
     def upload_file(bucket, path, key):
-        content_type = mimetypes.guess_type(key)[0] or 'text/plain'
-        bucket.upload_file(
-            path,
-            key,
-            ExtraArgs={
-                'ContentType': content_type,
-            }
-        )
+        try:
+            content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+            bucket.upload_file(
+                path,
+                key,
+                ExtraArgs={
+                    'ContentType': content_type,
+                }
+            )
+        except S3UploadFailedError as err:
+            print('Are you sure this is your bucket?')
+            exit()
