@@ -1,4 +1,5 @@
 import boto3
+from botocore.exceptions import ClientError
 import click
 
 
@@ -25,6 +26,14 @@ def list_bucket_objects(bucket):
     """List objects in an s3 bucket"""
     for obj in s3.Bucket(bucket).objects.all():
         print(obj)
+
+
+@cli.command('setup-bucket')
+@click.argument('bucket')
+def setup_bucket(bucket):
+    """Create and configure S3 bucket"""
+
+
 
 
 if __name__ == '__main__':
