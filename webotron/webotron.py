@@ -1,39 +1,81 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+"""
+Webotron: Deploy websites with AWS.
+
+Webotron automates the process of deploying static websites to AWS.
+- configure AWS S3 buckets
+    - Create them
+    - Set them up for static website hosting
+    - Deploy local files to them
+- Configure DNS with AWS Route 53
+- Configure a Content Delivery Network and SSL with AWS
+"""
+
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import NoCredentialsError, ProfileNotFound
 import click
 
+from bucket import BucketManager
 
-session = boto3.Session(profile_name='pythonAutomation')
-s3 = session.resource('s3')
+
+session = None
+bucket_manager = None
 
 
 @click.group()
-def cli():
-    """Webotron deploys websites to AWS"""
-    pass
+@click.option('--profile', default=None, help="Use a given AWS profile")
+def cli(profile):
+    """Webotron deploys websites to AWS."""
+    global session, bucket_manager
+    session_cfg = {}
+    if profile:
+        session_cfg['profile_name'] = profile
+        try:
+            session = boto3.Session(**session_cfg)
+            bucket_manager = BucketManager(session)
+        except ProfileNotFound as e:
+            print(e)
+            exit()
+    else:
+        raise NoCredentialsError(
+            "Please input profile name with --profile flag"
+        )
+        exit()
 
 
 @cli.command('list-buckets')
 def list_buckets():
-    """List all s3 buckets"""
-    for bucket in s3.buckets.all():
+    """List all s3 buckets."""
+    for bucket in bucket_manager.all_buckets():
         print(bucket)
 
 
 @cli.command('list-bucket-object')
 @click.argument('bucket')
 def list_bucket_objects(bucket):
-    """List objects in an s3 bucket"""
-    for obj in s3.Bucket(bucket).objects.all():
+    """List objects in an s3 bucket."""
+    for obj in bucket_manager.all_objects(bucket):
         print(obj)
 
 
 @cli.command('setup-bucket')
 @click.argument('bucket')
 def setup_bucket(bucket):
-    """Create and configure S3 bucket"""
+    """Create and configure a bucket in the same region as the profile."""
+
+    s3_bucket = bucket_manager.create_bucket(bucket)
+    bucket_manager.set_policy(s3_bucket)
+    bucket_manager.config_website(s3_bucket)
 
 
+@cli.command('sync')
+@click.argument('pathname', type=click.Path(exists=True))
+@click.argument('bucket')
+def sync(pathname, bucket):
+    """Sync contents of PATHNAME to BUCKET."""
+    bucket_manager.sync(pathname, bucket)
 
 
 if __name__ == '__main__':
