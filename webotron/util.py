@@ -90,3 +90,15 @@ region_to_endpoint = {
         'Z7KQH4QJS55SO'
     ),
 }
+
+
+# Helper functions
+
+def known_region(region):
+    """Return true if this is a known region."""
+    return region in region_to_endpoint
+
+
+def get_endpoint(region):
+    """Get the s3 website hosting endpoint for this region."""
+    return region_to_endpoint[region]

@@ -7,18 +7,37 @@ Classes for S3 Buckets.
 from botocore.client import Config
 from botocore.exceptions import ClientError
 from boto3.exceptions import S3UploadFailedError
+from boto3.s3.transfer import TransferConfig
 
 import json
 import mimetypes
 from pathlib import Path
+from hashlib import md5
+from functools import reduce
+
+import util
 
 
 class BucketManager:
     """Manage an S3 Bucket."""
 
+    CHUNK_SIZE = 8388608
+
     def __init__(self, session):
         self.session = session
         self.s3 = self.session.resource('s3')
+        self.manifest = {}
+        self.transfer_config = TransferConfig(
+            multipart_chunksize=self.CHUNK_SIZE,
+            multipart_threshold=self.CHUNK_SIZE,
+        )
+
+    def get_bucket_url(self, bucket_name):
+        """Get the website URL for this bucket."""
+        return "http://{}.{}".format(
+            bucket_name,
+            util.get_endpoint(self.session.region_name).host
+        )
 
     def all_buckets(self):
         """Get an iterator for all buckets."""
@@ -42,7 +61,7 @@ class BucketManager:
             try:
                 client.create_bucket(Bucket=bucket_name)
                 s3_bucket = self.s3.Bucket(bucket_name)
-            except ClientError as err:
+            except ClientError:
                 print('Abort: The bucket name has been occupised.')
                 exit()
 
@@ -97,6 +116,7 @@ class BucketManager:
 
         root = Path(pathname).expanduser().resolve()
         bucket = self.s3.Bucket(bucket_name)
+        self.load_manifest(bucket_name)
 
         def handle_directory(target):
             for path in target.iterdir():
@@ -110,17 +130,57 @@ class BucketManager:
                     )
         handle_directory(root)
 
+    def load_manifest(self, bucket_name):
+        """Load manifest for caching purposes."""
+        paginator = self.s3.meta.client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket_name):
+            for obj in page.get('Contents', []):
+                self.manifest[obj['Key']] = obj['ETag']
+
     @staticmethod
-    def upload_file(bucket, path, key):
+    def hash_data(data):
+        """Generate md5 hash for data."""
+        hash = md5()
+        hash.update(data)
+        return hash
+
+    def gen_etag(self, path):
+        """Generate etag for file."""
+        hashes = []
+        with open(path, 'rb') as f:
+            while True:
+                data = f.read(self.CHUNK_SIZE)
+
+                if not data:
+                    break
+
+            hashes.append(self.hash_data(data))
+
+            if not hashes:
+                return
+            elif len(hashes) == 1:
+                return '"{}"'.format(hashes[0].hexdigest())
+            else:
+                hash = self.hash_data(
+                    reduce(lambda x, y: x + y, (h.digest() for h in hashes))
+                )
+                return '"{}-{}"'.format(hash.hexdigest(), len(hashes))
+
+    def upload_file(self, bucket, path, key):
+        """Upload path to s3_bucket at key"""
+        content_type = mimetypes.guess_type(key)[0] or 'text/plain'
+        etag = self.gen_etag(path)
+        if self.manifest.get(key, '') == etag:
+            return
         try:
-            content_type = mimetypes.guess_type(key)[0] or 'text/plain'
             bucket.upload_file(
                 path,
                 key,
                 ExtraArgs={
                     'ContentType': content_type,
-                }
+                },
+                Config=self.transfer_config
             )
-        except S3UploadFailedError as err:
+        except S3UploadFailedError:
             print('Are you sure this is your bucket?')
             exit()
