@@ -6,7 +6,7 @@ Classes for Route 52 domains.
 
 import uuid
 
-import util
+import webotron.util
 
 
 class DomainManager:
@@ -35,7 +35,7 @@ class DomainManager:
 
     def create_s3_domain_record(self, zone, domain_name):
         """Create a domain record in domain hosted zone for domain_name."""
-        s3_endpooint = util.get_endpoint(self.session.region_name)
+        s3_endpooint = webotron.util.get_endpoint(self.session.region_name)
         return self.route53_client.change_resource_record_sets(
             HostedZoneId=zone['Id'],
             ChangeBatch={

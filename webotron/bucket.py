@@ -15,7 +15,7 @@ from pathlib import Path
 from hashlib import md5
 from functools import reduce
 
-import util
+import webotron.util
 
 
 class BucketManager:
@@ -36,7 +36,7 @@ class BucketManager:
         """Get the website URL for this bucket."""
         return "http://{}.{}".format(
             bucket_name,
-            util.get_endpoint(self.session.region_name).host
+            webotron.util.get_endpoint(self.session.region_name).host
         )
 
     def all_buckets(self):

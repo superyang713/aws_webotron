@@ -17,10 +17,10 @@ import boto3
 from botocore.exceptions import NoCredentialsError, ProfileNotFound
 import click
 
-from bucket import BucketManager
-from domain import DomainManager
-from certificate import CertificateManager
-from cdn import DistributionManager
+from webotron.bucket import BucketManager
+from webotron.domain import DomainManager
+from webotron.certificate import CertificateManager
+from webotron.cdn import DistributionManager
 
 from pprint import pprint
 
